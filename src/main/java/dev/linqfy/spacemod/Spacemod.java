@@ -32,60 +32,39 @@ import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 import org.slf4j.Logger;
 
-// The value here should match an entry in the META-INF/neoforge.mods.toml file
 @Mod(Spacemod.MODID)
 public class Spacemod {
-    // Define mod id in a common place for everything to reference
     public static final String MODID = "spacemod";
-    // Directly reference a slf4j logger
     private static final Logger LOGGER = LogUtils.getLogger();
-    // Create a Deferred Register to hold Blocks which will all be registered under the "spacemod" namespace
+    
     public static final DeferredRegister.Blocks BLOCKS = DeferredRegister.createBlocks(MODID);
-    // Create a Deferred Register to hold Items which will all be registered under the "spacemod" namespace
     public static final DeferredRegister.Items ITEMS = DeferredRegister.createItems(MODID);
-    // Create a Deferred Register to hold CreativeModeTabs which will all be registered under the "spacemod" namespace
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS = DeferredRegister.create(Registries.CREATIVE_MODE_TAB, MODID);
 
-    // Creates a new Block with the id "spacemod:example_block", combining the namespace and path
     public static final DeferredBlock<Block> EXAMPLE_BLOCK = BLOCKS.registerSimpleBlock("example_block", BlockBehaviour.Properties.of().mapColor(MapColor.STONE));
-    // Creates a new BlockItem with the id "spacemod:example_block", combining the namespace and path
     public static final DeferredItem<BlockItem> EXAMPLE_BLOCK_ITEM = ITEMS.registerSimpleBlockItem("example_block", EXAMPLE_BLOCK);
 
-    // Creates a new food item with the id "spacemod:example_id", nutrition 1 and saturation 2
     public static final DeferredItem<Item> EXAMPLE_ITEM = ITEMS.registerSimpleItem("example_item", new Item.Properties().food(new FoodProperties.Builder().alwaysEdible().nutrition(1).saturationModifier(2f).build()));
 
-    // Creates a creative tab with the id "spacemod:example_tab" for the example item, that is placed after the combat tab
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> EXAMPLE_TAB = CREATIVE_MODE_TABS.register("example_tab", () -> CreativeModeTab.builder().title(Component.translatable("itemGroup.spacemod")).withTabsBefore(CreativeModeTabs.COMBAT).icon(() -> EXAMPLE_ITEM.get().getDefaultInstance()).displayItems((parameters, output) -> {
-        output.accept(EXAMPLE_ITEM.get()); // Add the example item to the tab. For your own tabs, this method is preferred over the event
+        output.accept(EXAMPLE_ITEM.get());
     }).build());
 
-    // The constructor for the mod class is the first code that is run when your mod is loaded.
-    // FML will recognize some parameter types like IEventBus or ModContainer and pass them in automatically.
     public Spacemod(IEventBus modEventBus, ModContainer modContainer) {
-        // Register the commonSetup method for modloading
         modEventBus.addListener(this::commonSetup);
 
-        // Register the Deferred Register to the mod event bus so blocks get registered
         BLOCKS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so items get registered
         ITEMS.register(modEventBus);
-        // Register the Deferred Register to the mod event bus so tabs get registered
         CREATIVE_MODE_TABS.register(modEventBus);
 
-        // Register ourselves for server and other game events we are interested in.
-        // Note that this is necessary if and only if we want *this* class (Spacemod) to respond directly to events.
-        // Do not add this line if there are no @SubscribeEvent-annotated functions in this class, like onServerStarting() below.
         NeoForge.EVENT_BUS.register(this);
 
-        // Register the item to a creative tab
         modEventBus.addListener(this::addCreative);
 
-        // Register our mod's ModConfigSpec so that FML can create and load the config file for us
         modContainer.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
     }
 
     private void commonSetup(final FMLCommonSetupEvent event) {
-        // Some common setup code
         LOGGER.info("HELLO FROM COMMON SETUP");
 
         if (Config.logDirtBlock) LOGGER.info("DIRT BLOCK >> {}", BuiltInRegistries.BLOCK.getKey(Blocks.DIRT));
@@ -95,26 +74,149 @@ public class Spacemod {
         Config.items.forEach((item) -> LOGGER.info("ITEM >> {}", item.toString()));
     }
 
-    // Add the example block item to the building blocks tab
     private void addCreative(BuildCreativeModeTabContentsEvent event) {
         if (event.getTabKey() == CreativeModeTabs.BUILDING_BLOCKS) event.accept(EXAMPLE_BLOCK_ITEM);
     }
 
-    // You can use SubscribeEvent and let the Event Bus discover methods to call
     @SubscribeEvent
     public void onServerStarting(ServerStartingEvent event) {
-        // Do something when the server starts
         LOGGER.info("HELLO from server starting");
     }
 
-    // You can use EventBusSubscriber to automatically register all static methods in the class annotated with @SubscribeEvent
-    @EventBusSubscriber(modid = MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
+    @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
     public static class ClientModEvents {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
-            // Some client setup code
             LOGGER.info("HELLO FROM CLIENT SETUP");
             LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
         }
+    }
+
+    public static final net.minecraft.resources.ResourceLocation PLANET_SHADER = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "planet");
+
+    @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
+    public static class GameClientEvents {
+        @SubscribeEvent
+        public static void onClientSetup(FMLClientSetupEvent event) {
+            LOGGER.info("HELLO FROM CLIENT SETUP");
+            LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
+            
+            try {
+                Class eventClass = Class.forName("foundry.imgui.neoforge.api.event.RenderImGuiEventsNeoforge$Post");
+                net.neoforged.neoforge.common.NeoForge.EVENT_BUS.addListener(
+                    net.neoforged.bus.api.EventPriority.NORMAL,
+                    false,
+                    eventClass,
+                    (java.util.function.Consumer<net.neoforged.bus.api.Event>) (e) -> {
+                        try {
+                            Class<?> imGuiClass = Class.forName("imgui.ImGui");
+                            imGuiClass.getMethod("begin", String.class).invoke(null, "Planet Settings");
+                            
+                            float[] pos = {(float) Config.planetX, (float) Config.planetY, (float) Config.planetZ};
+                            if ((Boolean) imGuiClass.getMethod("dragFloat3", String.class, float[].class).invoke(null, "Position", pos)) {
+                                Config.planetX = pos[0];
+                                Config.planetY = pos[1];
+                                Config.planetZ = pos[2];
+                            }
+                            
+                            float[] radius = {(float) Config.planetRadius};
+                            if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Radius", radius)) {
+                                Config.planetRadius = radius[0];
+                            }
+                            
+                            float[] color = {(float) Config.planetColorR, (float) Config.planetColorG, (float) Config.planetColorB};
+                            if ((Boolean) imGuiClass.getMethod("colorEdit3", String.class, float[].class).invoke(null, "Color", color)) {
+                                Config.planetColorR = color[0];
+                                Config.planetColorG = color[1];
+                                Config.planetColorB = color[2];
+                            }
+                            
+                            imGuiClass.getMethod("end").invoke(null);
+                        } catch (Exception ex) {
+                        }
+                    }
+                );
+            } catch (Exception e) {
+                LOGGER.error("Failed to register ImGui event", e);
+            }
+        }
+
+        @SubscribeEvent
+        public static void onRenderLevelStage(net.neoforged.neoforge.client.event.RenderLevelStageEvent event) {
+            if (event.getStage() == net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
+                var ms = event.getPoseStack();
+                var cam = event.getCamera();
+
+                foundry.veil.api.client.render.shader.program.ShaderProgram shader = foundry.veil.api.client.render.VeilRenderSystem.setShader(Spacemod.PLANET_SHADER);
+                if (shader == null) {
+                    return;
+                }
+
+                foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess colorUniform = shader.getUniform("PlanetColor");
+                if (colorUniform != null) colorUniform.setVector((float) Config.planetColorR, (float) Config.planetColorG, (float) Config.planetColorB);
+
+                ms.pushPose();
+                ms.translate(Config.planetX - cam.getPosition().x, Config.planetY - cam.getPosition().y, Config.planetZ - cam.getPosition().z);
+
+                float r = (float) Config.planetRadius;
+
+                com.mojang.blaze3d.vertex.Tesselator tesselator = com.mojang.blaze3d.vertex.Tesselator.getInstance();
+                com.mojang.blaze3d.vertex.BufferBuilder buffer = tesselator.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX);
+
+                org.joml.Matrix4f matrix = ms.last().pose();
+
+                // Build a UV sphere mesh
+                int rings = 32;
+                int sectors = 32;
+                for (int ring = 0; ring < rings; ring++) {
+                    float phi0 = (float) Math.PI * ring / rings;
+                    float phi1 = (float) Math.PI * (ring + 1) / rings;
+                    
+                    float y0 = r * (float) Math.cos(phi0);
+                    float y1 = r * (float) Math.cos(phi1);
+                    float r0 = r * (float) Math.sin(phi0);
+                    float r1 = r * (float) Math.sin(phi1);
+                    
+                    for (int sector = 0; sector < sectors; sector++) {
+                        float theta0 = (float) (2 * Math.PI * sector / sectors);
+                        float theta1 = (float) (2 * Math.PI * (sector + 1) / sectors);
+                        
+                        float x00 = r0 * (float) Math.cos(theta0);
+                        float z00 = r0 * (float) Math.sin(theta0);
+                        float x01 = r0 * (float) Math.cos(theta1);
+                        float z01 = r0 * (float) Math.sin(theta1);
+                        
+                        float x10 = r1 * (float) Math.cos(theta0);
+                        float z10 = r1 * (float) Math.sin(theta0);
+                        float x11 = r1 * (float) Math.cos(theta1);
+                        float z11 = r1 * (float) Math.sin(theta1);
+                        
+                        float u0 = (float) sector / sectors;
+                        float u1 = (float) (sector + 1) / sectors;
+                        float v0 = (float) ring / rings;
+                        float v1 = (float) (ring + 1) / rings;
+                        
+                        buffer.addVertex(matrix, x00, y0, z00).setUv(u0, v0);
+                        buffer.addVertex(matrix, x10, y1, z10).setUv(u0, v1);
+                        buffer.addVertex(matrix, x11, y1, z11).setUv(u1, v1);
+                        buffer.addVertex(matrix, x01, y0, z01).setUv(u1, v0);
+                    }
+                }
+
+                // Enable depth mask so it properly intersects with the 3D world
+                com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
+                com.mojang.blaze3d.systems.RenderSystem.depthMask(true);
+                
+                com.mojang.blaze3d.systems.RenderSystem.enableBlend();
+                com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
+
+                com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(buffer.buildOrThrow());
+
+                com.mojang.blaze3d.systems.RenderSystem.disableBlend();
+
+                ms.popPose();
+            }
+        }
+
     }
 }
