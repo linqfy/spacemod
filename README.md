@@ -1,4 +1,4 @@
-# Spacemod
+# Spacemod (Create: Starfall)
 
 A NeoForge Minecraft mod that introduces custom 3D shader-based celestial rendering.
 
