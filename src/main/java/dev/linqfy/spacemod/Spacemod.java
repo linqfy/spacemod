@@ -112,23 +112,39 @@ public class Spacemod {
                             Class<?> imGuiClass = Class.forName("imgui.ImGui");
                             imGuiClass.getMethod("begin", String.class).invoke(null, "Planet Settings");
                             
-                            float[] pos = {(float) Config.planetX, (float) Config.planetY, (float) Config.planetZ};
-                            if ((Boolean) imGuiClass.getMethod("dragFloat3", String.class, float[].class).invoke(null, "Position", pos)) {
-                                Config.planetX = pos[0];
-                                Config.planetY = pos[1];
-                                Config.planetZ = pos[2];
+                            java.util.List<Planet> planets = PlanetManager.getPlanets();
+                            for (int i = 0; i < planets.size(); i++) {
+                                Planet p = planets.get(i);
+                                imGuiClass.getMethod("pushID", int.class).invoke(null, i);
+                                
+                                if ((Boolean) imGuiClass.getMethod("collapsingHeader", String.class).invoke(null, "Planet " + (i + 1))) {
+                                    float[] pos = {p.x, p.y, p.z};
+                                    if ((Boolean) imGuiClass.getMethod("dragFloat3", String.class, float[].class).invoke(null, "Position", pos)) {
+                                        p.x = pos[0]; p.y = pos[1]; p.z = pos[2];
+                                    }
+                                    
+                                    float[] radius = {p.radius};
+                                    if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Radius", radius)) {
+                                        p.radius = Math.max(0.1f, radius[0]);
+                                    }
+                                    
+                                    float[] color = {p.colorR, p.colorG, p.colorB};
+                                    if ((Boolean) imGuiClass.getMethod("colorEdit3", String.class, float[].class).invoke(null, "Color", color)) {
+                                        p.colorR = color[0]; p.colorG = color[1]; p.colorB = color[2];
+                                    }
+                                    
+                                    if ((Boolean) imGuiClass.getMethod("button", String.class).invoke(null, "Remove Planet")) {
+                                        planets.remove(i);
+                                        imGuiClass.getMethod("popID").invoke(null);
+                                        break; // avoid concurrent modification
+                                    }
+                                }
+                                
+                                imGuiClass.getMethod("popID").invoke(null);
                             }
                             
-                            float[] radius = {(float) Config.planetRadius};
-                            if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Radius", radius)) {
-                                Config.planetRadius = radius[0];
-                            }
-                            
-                            float[] color = {(float) Config.planetColorR, (float) Config.planetColorG, (float) Config.planetColorB};
-                            if ((Boolean) imGuiClass.getMethod("colorEdit3", String.class, float[].class).invoke(null, "Color", color)) {
-                                Config.planetColorR = color[0];
-                                Config.planetColorG = color[1];
-                                Config.planetColorB = color[2];
+                            if ((Boolean) imGuiClass.getMethod("button", String.class).invoke(null, "Add Planet")) {
+                                planets.add(new Planet(0, 100, 0, 20, 1.0f, 1.0f, 1.0f));
                             }
                             
                             imGuiClass.getMethod("end").invoke(null);
@@ -143,80 +159,82 @@ public class Spacemod {
 
         @SubscribeEvent
         public static void onRenderLevelStage(net.neoforged.neoforge.client.event.RenderLevelStageEvent event) {
-            if (event.getStage() == net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage.AFTER_PARTICLES) {
+            if (event.getStage() == net.neoforged.neoforge.client.event.RenderLevelStageEvent.Stage.AFTER_SKY) {
                 var ms = event.getPoseStack();
                 var cam = event.getCamera();
+
+                PlanetManager.initialize();
 
                 foundry.veil.api.client.render.shader.program.ShaderProgram shader = foundry.veil.api.client.render.VeilRenderSystem.setShader(Spacemod.PLANET_SHADER);
                 if (shader == null) {
                     return;
                 }
 
-                foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess colorUniform = shader.getUniform("PlanetColor");
-                if (colorUniform != null) colorUniform.setVector((float) Config.planetColorR, (float) Config.planetColorG, (float) Config.planetColorB);
+                shader.bind();
 
-                ms.pushPose();
-                ms.translate(Config.planetX - cam.getPosition().x, Config.planetY - cam.getPosition().y, Config.planetZ - cam.getPosition().z);
+                foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess projUniform = shader.getUniform("ProjMat");
+                if (projUniform != null) projUniform.setMatrix(event.getProjectionMatrix());
 
-                float r = (float) Config.planetRadius;
-
-                com.mojang.blaze3d.vertex.Tesselator tesselator = com.mojang.blaze3d.vertex.Tesselator.getInstance();
-                com.mojang.blaze3d.vertex.BufferBuilder buffer = tesselator.begin(com.mojang.blaze3d.vertex.VertexFormat.Mode.QUADS, com.mojang.blaze3d.vertex.DefaultVertexFormat.POSITION_TEX);
-
-                org.joml.Matrix4f matrix = ms.last().pose();
-
-                // Build a UV sphere mesh
-                int rings = 32;
-                int sectors = 32;
-                for (int ring = 0; ring < rings; ring++) {
-                    float phi0 = (float) Math.PI * ring / rings;
-                    float phi1 = (float) Math.PI * (ring + 1) / rings;
-                    
-                    float y0 = r * (float) Math.cos(phi0);
-                    float y1 = r * (float) Math.cos(phi1);
-                    float r0 = r * (float) Math.sin(phi0);
-                    float r1 = r * (float) Math.sin(phi1);
-                    
-                    for (int sector = 0; sector < sectors; sector++) {
-                        float theta0 = (float) (2 * Math.PI * sector / sectors);
-                        float theta1 = (float) (2 * Math.PI * (sector + 1) / sectors);
-                        
-                        float x00 = r0 * (float) Math.cos(theta0);
-                        float z00 = r0 * (float) Math.sin(theta0);
-                        float x01 = r0 * (float) Math.cos(theta1);
-                        float z01 = r0 * (float) Math.sin(theta1);
-                        
-                        float x10 = r1 * (float) Math.cos(theta0);
-                        float z10 = r1 * (float) Math.sin(theta0);
-                        float x11 = r1 * (float) Math.cos(theta1);
-                        float z11 = r1 * (float) Math.sin(theta1);
-                        
-                        float u0 = (float) sector / sectors;
-                        float u1 = (float) (sector + 1) / sectors;
-                        float v0 = (float) ring / rings;
-                        float v1 = (float) (ring + 1) / rings;
-                        
-                        buffer.addVertex(matrix, x00, y0, z00).setUv(u0, v0);
-                        buffer.addVertex(matrix, x10, y1, z10).setUv(u0, v1);
-                        buffer.addVertex(matrix, x11, y1, z11).setUv(u1, v1);
-                        buffer.addVertex(matrix, x01, y0, z01).setUv(u1, v0);
-                    }
-                }
-
-                // Enable depth mask so it properly intersects with the 3D world
                 com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
                 com.mojang.blaze3d.systems.RenderSystem.depthMask(true);
-                
+                com.mojang.blaze3d.systems.RenderSystem.disableCull();
                 com.mojang.blaze3d.systems.RenderSystem.enableBlend();
                 com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
 
-                com.mojang.blaze3d.vertex.BufferUploader.drawWithShader(buffer.buildOrThrow());
+                java.util.List<Planet> planets = PlanetManager.getPlanets();
+                for (Planet p : planets) {
+                    ms.pushPose();
+                    
+                    // Minecraft's event.getPoseStack() typically contains the camera rotation.
+                    // If it does, ms.translate() applies in view space, which is wrong for world objects!
+                    // To fix this, we build the ModelView matrix from scratch:
+                    // 1. Start with identity.
+                    // 2. Apply camera rotation inverse (World to View).
+                    // 3. Translate by world position (Local to World).
+                    // 4. Scale.
+                    org.joml.Matrix4f mv = new org.joml.Matrix4f();
+                    
+                    // The camera's left/right/up vectors are defined by its rotation.
+                    // To go from World to View, we rotate by the inverse of the camera's orientation.
+                    org.joml.Quaternionf camRot = new org.joml.Quaternionf(cam.rotation());
+                    camRot.conjugate(); // Inverse of a normalized quaternion is its conjugate
+                    mv.rotation(camRot);
+                    
+                    // Now translate in world space relative to the camera position
+                    float dx = p.x - (float) cam.getPosition().x;
+                    float dy = p.y - (float) cam.getPosition().y;
+                    float dz = p.z - (float) cam.getPosition().z;
+                    mv.translate(dx, dy, dz);
+                    mv.scale(p.radius, p.radius, p.radius);
 
+                    foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess mvUniform = shader.getUniform("ModelViewMat");
+                    if (mvUniform != null) mvUniform.setMatrix(mv);
+
+                    foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess colorUniform = shader.getUniform("PlanetColor");
+                    if (colorUniform != null) colorUniform.setVector(p.colorR, p.colorG, p.colorB);
+
+                    foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess sunPosUniform = shader.getUniform("SunViewPos");
+                    if (sunPosUniform != null) {
+                        org.joml.Matrix4f viewMat = new org.joml.Matrix4f().rotation(camRot);
+                        org.joml.Vector4f sunPos = new org.joml.Vector4f((float) -cam.getPosition().x, (float) -cam.getPosition().y, (float) -cam.getPosition().z, 1.0f);
+                        viewMat.transform(sunPos);
+                        sunPosUniform.setVector(sunPos.x, sunPos.y, sunPos.z);
+                    }
+
+                    float distance = (float) Math.sqrt(dx*dx + dy*dy + dz*dz);
+                    foundry.veil.api.client.render.vertex.VertexArray vertexArray = PlanetManager.getLODForDistance(distance, p.radius);
+                    
+                    vertexArray.bind();
+                    vertexArray.draw();
+                    foundry.veil.api.client.render.vertex.VertexArray.unbind();
+
+                    ms.popPose();
+                }
+
+                com.mojang.blaze3d.systems.RenderSystem.enableCull();
                 com.mojang.blaze3d.systems.RenderSystem.disableBlend();
-
-                ms.popPose();
+                foundry.veil.api.client.render.shader.program.ShaderProgram.unbind();
             }
         }
-
     }
 }
