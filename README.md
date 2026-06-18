@@ -1,37 +1,13 @@
-# Spacemod (Create: Starfall)
+<p align="center">
+  <img src="etc/starfall.png" width="250" alt="Starfall">
+</p>
 
-A NeoForge Minecraft mod that introduces custom 3D shader-based celestial rendering.
+# Create: Starfall
 
-## Features
-- **Custom Shaders**: Utilizes GLSL shaders (`planet.vsh` & `planet.fsh`) for true 3D sphere generation and lighting, featuring fresnel approximations.
-- **In-Game Configuration**: Integrates with ImGui for real-time manipulation of the rendered planet's settings (Position, Radius, Color).
-- **Core Modding Support**: Built using the NeoForge API, with boilerplate setup ready to expand blocks, items, and creative tabs.
+A space exploration mod for Minecraft. Built on top of Create Aeronautics.
 
-## Getting Started
+Build your vessels. Let physics lift your blocks from the dirt into the quiet of the void. Travel. Land. Explore. Procedurally generated worlds drifting in the dark.
 
-### Prerequisites
-- Java Development Kit (JDK) (ensure it matches the required version for your NeoForge target, typically JDK 21 for modern versions)
-- Gradle
+Built for Hackclub Stardance. ([Visit the Project ↗](https://stardance.hackclub.com/projects/11911))
 
-### Building
-Clone the repository and build using Gradle wrapper:
-
-```bash
-git clone <repository-url>
-cd spacemod
-./gradlew build
-```
-
-### Running the Mod
-You can run the mod in a development environment via Gradle:
-```bash
-./gradlew runClient
-```
-
-## Structure
-- **Main Logic**: `src/main/java/dev/linqfy/spacemod/Spacemod.java` handles event subscription and the `RenderLevelStageEvent` for rendering.
-- **Config**: `src/main/java/dev/linqfy/spacemod/Config.java` defines mod configuration.
-- **Shaders**: Located under `src/main/resources/assets/spacemod/pinwheel/shaders/program/`.
-
-## License
-*Provisional README - gotta fix this later heh*
+Inspired by Outer Wilds and doctor4t.
