@@ -83,16 +83,32 @@ public class Spacemod {
         LOGGER.info("HELLO from server starting");
     }
 
-    @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
+    @EventBusSubscriber(modid = MODID, bus = EventBusSubscriber.Bus.MOD, value = Dist.CLIENT)
     public static class ClientModEvents {
         @SubscribeEvent
         public static void onClientSetup(FMLClientSetupEvent event) {
             LOGGER.info("HELLO FROM CLIENT SETUP");
             LOGGER.info("MINECRAFT NAME >> {}", Minecraft.getInstance().getUser().getName());
         }
+
+        @SubscribeEvent
+        public static void registerDimensionEffects(net.neoforged.neoforge.client.event.RegisterDimensionSpecialEffectsEvent event) {
+            event.register(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "space"),
+                new net.minecraft.client.renderer.DimensionSpecialEffects(Float.NaN, false, net.minecraft.client.renderer.DimensionSpecialEffects.SkyType.NONE, false, false) {
+                    @Override
+                    public net.minecraft.world.phys.Vec3 getBrightnessDependentFogColor(net.minecraft.world.phys.Vec3 color, float sunHeight) {
+                        return color;
+                    }
+                    @Override
+                    public boolean isFoggyAt(int x, int y) {
+                        return false;
+                    }
+                });
+        }
     }
 
     public static final net.minecraft.resources.ResourceLocation PLANET_SHADER = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "planet");
+    public static final net.minecraft.resources.ResourceLocation SKYBOX_SHADER = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "skybox");
 
     @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
     public static class GameClientEvents {
@@ -181,26 +197,53 @@ public class Spacemod {
                 com.mojang.blaze3d.systems.RenderSystem.enableBlend();
                 com.mojang.blaze3d.systems.RenderSystem.defaultBlendFunc();
 
+                net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+                if (mc.level != null && mc.level.dimension().location().equals(net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "space"))) {
+                    foundry.veil.api.client.render.shader.program.ShaderProgram skyboxShader = foundry.veil.api.client.render.VeilRenderSystem.setShader(Spacemod.SKYBOX_SHADER);
+                    if (skyboxShader != null) {
+                        skyboxShader.bind();
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyProjUniform = skyboxShader.getUniform("ProjMat");
+                        if (skyProjUniform != null) skyProjUniform.setMatrix(event.getProjectionMatrix());
+                        
+                        org.joml.Matrix4f skyMv = new org.joml.Matrix4f();
+                        org.joml.Quaternionf skyCamRot = new org.joml.Quaternionf(cam.rotation());
+                        skyCamRot.conjugate();
+                        skyMv.rotation(skyCamRot);
+                        
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyMvUniform = skyboxShader.getUniform("ModelViewMat");
+                        if (skyMvUniform != null) skyMvUniform.setMatrix(skyMv);
+                        
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyTimeUniform = skyboxShader.getUniform("Time");
+                        if (skyTimeUniform != null) skyTimeUniform.setFloat((System.currentTimeMillis() % 100000L) / 1000.0f);
+
+                        com.mojang.blaze3d.systems.RenderSystem.disableDepthTest();
+                        com.mojang.blaze3d.systems.RenderSystem.depthMask(false);
+
+                        ms.pushPose();
+                        // Render a large sphere to cover everything
+                        foundry.veil.api.client.render.vertex.VertexArray skyboxVbo = PlanetManager.getLODForDistance(0, 100);
+                        skyboxVbo.bind();
+                        skyboxVbo.draw();
+                        foundry.veil.api.client.render.vertex.VertexArray.unbind();
+                        ms.popPose();
+
+                        com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
+                        com.mojang.blaze3d.systems.RenderSystem.depthMask(true);
+                        
+                        foundry.veil.api.client.render.shader.program.ShaderProgram.unbind();
+                        shader.bind(); // Rebind planet shader
+                    }
+                }
+
                 java.util.List<Planet> planets = PlanetManager.getPlanets();
                 for (Planet p : planets) {
                     ms.pushPose();
                     
-                    // Minecraft's event.getPoseStack() typically contains the camera rotation.
-                    // If it does, ms.translate() applies in view space, which is wrong for world objects!
-                    // To fix this, we build the ModelView matrix from scratch:
-                    // 1. Start with identity.
-                    // 2. Apply camera rotation inverse (World to View).
-                    // 3. Translate by world position (Local to World).
-                    // 4. Scale.
                     org.joml.Matrix4f mv = new org.joml.Matrix4f();
-                    
-                    // The camera's left/right/up vectors are defined by its rotation.
-                    // To go from World to View, we rotate by the inverse of the camera's orientation.
                     org.joml.Quaternionf camRot = new org.joml.Quaternionf(cam.rotation());
-                    camRot.conjugate(); // Inverse of a normalized quaternion is its conjugate
+                    camRot.conjugate();
                     mv.rotation(camRot);
                     
-                    // Now translate in world space relative to the camera position
                     float dx = p.x - (float) cam.getPosition().x;
                     float dy = p.y - (float) cam.getPosition().y;
                     float dz = p.z - (float) cam.getPosition().z;
