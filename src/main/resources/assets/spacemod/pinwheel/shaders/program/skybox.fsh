@@ -156,30 +156,61 @@ vec3 drawAuroraSky(vec3 dir, vec3 sunDir) {
     return color * polarMask * nightMask * curtains * 0.16;
 }
 
-vec3 drawLensFlare(vec2 uv, vec2 sunUv, float visible) {
-    float onscreen = step(-0.25, sunUv.x) * step(sunUv.x, 1.25) * step(-0.25, sunUv.y) * step(sunUv.y, 1.25) * visible;
+vec3 drawLensFlare(vec2 uv, vec2 sunUv, float visible, vec3 dir, vec3 sunDir) {
+    float onscreen = step(-0.25, sunUv.x) * step(sunUv.x, 1.25) * step(-0.25, sunUv.y) * step(sunUv.y, 1.25) * step(0.0, visible);
     vec2 center = vec2(0.5);
     vec2 axis = center - sunUv;
-    vec3 color = vec3(0.0);
+    vec3 lensColor = vec3(0.0);
+    vec3 ambientColor = vec3(0.0);
 
-    float halo = 1.0 - smoothstep(0.0, 0.46, length((uv - sunUv) * vec2(ScreenSize.x / max(ScreenSize.y, 1.0), 1.0)));
-    color += vec3(1.0, 0.72, 0.35) * halo * 0.12;
+    vec2 aspectUv = (uv - sunUv) * vec2(ScreenSize.x / max(ScreenSize.y, 1.0), 1.0);
+    
+    // Calculate 3D angle distance for stable, omnidirectional massive bloom
+    float dotSun = dot(dir, sunDir);
+    float angleDist = acos(clamp(dotSun, -1.0, 1.0));
 
+    // Massive Sun Bloom (3D)
+    float massiveBloom = exp(-angleDist * 2.5) * 2.0 + exp(-angleDist * 6.0) * 4.0 + exp(-angleDist * 15.0) * 8.0;
+    vec3 bloomColor = vec3(1.0, 0.9, 0.7) * massiveBloom;
+
+    // Dramatic Rayleigh & Mie Bloom (3D)
+    float rayleighDist = max(angleDist, 0.001);
+    vec3 rayleighBloom = vec3(0.1, 0.3, 1.0) * exp(-rayleighDist * 1.8) * 3.5;
+    vec3 mieSunsetBloom = vec3(1.0, 0.35, 0.05) * exp(-rayleighDist * 4.5) * 4.0;
+
+    ambientColor += (bloomColor + rayleighBloom + mieSunsetBloom) * (0.15 + 0.02 * sin(Time * 2.0));
+
+    // Dynamic rotating starburst (Screen space)
+    float angle = atan(aspectUv.y, aspectUv.x);
+    float starburst = sin(angle * 8.0 + Time * 0.5) * sin(angle * 13.0 - Time * 0.3) * 0.5 + 0.5;
+    lensColor += vec3(1.0, 0.8, 0.5) * massiveBloom * starburst * 0.05;
+
+    // Ghosts (Screen space)
     for (int i = 0; i < 5; i++) {
         float fi = float(i);
-        vec2 ghostPos = sunUv + axis * (0.42 + fi * 0.28);
+        vec2 ghostOffset = vec2(sin(Time * 0.4 + fi), cos(Time * 0.4 + fi)) * 0.015;
+        vec2 ghostPos = sunUv + axis * (0.42 + fi * 0.28) + ghostOffset;
         float ghostDist = length((uv - ghostPos) * vec2(ScreenSize.x / max(ScreenSize.y, 1.0), 1.0));
         float ghost = 1.0 - smoothstep(0.0, 0.11 + fi * 0.012, ghostDist);
         vec3 ghostColor = mix(vec3(0.2, 0.55, 1.0), vec3(1.0, 0.25, 0.08), fract(fi * 0.37));
-        color += ghostColor * ghost * (0.08 / (1.0 + fi * 0.28));
+        float pulse = 1.0 + 0.2 * sin(Time * 1.5 + fi * 2.0);
+        lensColor += ghostColor * ghost * (0.08 / (1.0 + fi * 0.28)) * pulse;
     }
 
-    float streakY = abs(uv.y - sunUv.y);
-    float streakX = abs(uv.x - sunUv.x);
-    float anamorphic = exp(-streakY * 180.0) * (1.0 - smoothstep(0.0, 0.75, streakX));
-    color += vec3(0.55, 0.72, 1.0) * anamorphic * 0.16;
+    // Dynamic anamorphic streak with Chromatic Aberration (Screen space)
+    float streakY = abs(aspectUv.y);
+    float streakX = abs(aspectUv.x);
+    float streakPulse = 1.0 + 0.15 * sin(Time * 3.0);
+    
+    float anamorphicR = exp(-(streakY + 0.002) * 180.0 * streakPulse) * (1.0 - smoothstep(0.0, 0.75, streakX));
+    float anamorphicG = exp(-streakY * 180.0 * streakPulse) * (1.0 - smoothstep(0.0, 0.75, streakX));
+    float anamorphicB = exp(-(streakY - 0.002) * 180.0 * streakPulse) * (1.0 - smoothstep(0.0, 0.75, streakX));
+    
+    vec3 anamorphicColor = vec3(anamorphicR, anamorphicG, anamorphicB) * vec3(0.6, 0.75, 1.0);
+    lensColor += anamorphicColor * (0.25 + 0.05 * sin(Time * 2.5));
 
-    return color * onscreen * LensFlareStrength;
+    // Add ambient color regardless of screen position, only multiply lens artifacts by onscreen
+    return (ambientColor + lensColor * onscreen) * LensFlareStrength;
 }
 
 void main() {
@@ -220,7 +251,7 @@ void main() {
     color += drawZodiacalLight(dir, sunDir);
     color += drawAuroraSky(dir, sunDir);
     color += drawInterplanetaryScatter(dir, sunDir);
-    color += drawLensFlare(gl_FragCoord.xy / max(ScreenSize.xy, vec2(1.0)), SunScreenPos.xy, SunScreenPos.z);
+    color += drawLensFlare(gl_FragCoord.xy / max(ScreenSize.xy, vec2(1.0)), SunScreenPos.xy, SunScreenPos.z, dir, sunDir);
 
     color = aces(color);
     

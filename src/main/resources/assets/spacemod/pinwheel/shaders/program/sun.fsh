@@ -91,5 +91,5 @@ void main() {
     color += vec3(1.0, 0.30, 0.035) * chromosphereRim * SOLAR_EXPOSURE * 0.18;
     color = mix(color, vec3(SOLAR_EXPOSURE), whiteCore * 0.35);
 
-    fragColor = vec4(aces(color), 1.0);
+    fragColor = vec4(color, 1.0);
 }
