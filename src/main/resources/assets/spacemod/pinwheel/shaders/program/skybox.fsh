@@ -5,6 +5,10 @@ out vec4 fragColor;
 
 uniform float Time;
 uniform mat4 ModelViewMat;
+uniform vec3 ScreenSize;
+uniform vec3 SunDirection;
+uniform vec3 SunScreenPos;
+uniform float LensFlareStrength;
 
 float hash(vec3 p) {
     p = fract(p * vec3(0.1031, 0.1030, 0.0973));
@@ -109,7 +113,7 @@ vec3 drawStars(vec3 dir, float scale, float twinkleSpeed) {
                 // Analytic anti-aliasing to prevent sub-pixel flickering
                 float radius = max(size, edge);
                 float intensity = size / radius;
-                float brightness = smoothstep(radius, 0.0, d) * intensity;
+                float brightness = (1.0 - smoothstep(0.0, radius, d)) * intensity;
                 
                 vec3 starColor = mix(vec3(0.7, 0.85, 1.0), vec3(1.0, 0.85, 0.65), h.z);
                 
@@ -123,11 +127,67 @@ vec3 drawStars(vec3 dir, float scale, float twinkleSpeed) {
     return color;
 }
 
+vec3 drawInterplanetaryScatter(vec3 dir, vec3 sunDir) {
+    float forward = max(dot(dir, sunDir), 0.0);
+    float backscatter = max(dot(dir, -sunDir), 0.0);
+    float dustHalo = pow(forward, 12.0) * 0.12 + pow(forward, 3.2) * 0.035;
+    float gegenschein = pow(backscatter, 24.0) * 0.018;
+    return vec3(1.0, 0.72, 0.42) * dustHalo + vec3(0.55, 0.68, 1.0) * gegenschein;
+}
+
+vec3 drawZodiacalLight(vec3 dir, vec3 sunDir) {
+    float eclipticBand = exp(-pow(abs(dir.y) * 5.2, 2.0));
+    float nearSun = pow(max(dot(dir, sunDir), 0.0), 2.5);
+    float oppositeSun = pow(max(dot(dir, -sunDir), 0.0), 18.0);
+    vec3 dustColor = vec3(0.9, 0.68, 0.42);
+    return dustColor * eclipticBand * (0.035 + nearSun * 0.14 + oppositeSun * 0.05);
+}
+
+vec3 drawAuroraSky(vec3 dir, vec3 sunDir) {
+    float polarMask = smoothstep(0.62, 0.96, abs(dir.y));
+    float nightMask = 1.0 - smoothstep(-0.5, 0.05, dot(dir, sunDir));
+    float curtainNoise = fbm3(vec3(atan(dir.z, dir.x) * 2.0, dir.y * 8.0, Time * 0.08));
+    float curtains = smoothstep(0.52, 0.82, curtainNoise + sin(atan(dir.z, dir.x) * 16.0 + Time * 0.35) * 0.12);
+    vec3 green = vec3(0.04, 0.8, 0.28);
+    vec3 violet = vec3(0.32, 0.08, 0.9);
+    vec3 red = vec3(0.8, 0.08, 0.05);
+    vec3 color = mix(green, violet, smoothstep(0.65, 0.95, curtainNoise));
+    color = mix(color, red, smoothstep(0.9, 1.0, abs(dir.y)) * 0.3);
+    return color * polarMask * nightMask * curtains * 0.16;
+}
+
+vec3 drawLensFlare(vec2 uv, vec2 sunUv, float visible) {
+    float onscreen = step(-0.25, sunUv.x) * step(sunUv.x, 1.25) * step(-0.25, sunUv.y) * step(sunUv.y, 1.25) * visible;
+    vec2 center = vec2(0.5);
+    vec2 axis = center - sunUv;
+    vec3 color = vec3(0.0);
+
+    float halo = 1.0 - smoothstep(0.0, 0.46, length((uv - sunUv) * vec2(ScreenSize.x / max(ScreenSize.y, 1.0), 1.0)));
+    color += vec3(1.0, 0.72, 0.35) * halo * 0.12;
+
+    for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        vec2 ghostPos = sunUv + axis * (0.42 + fi * 0.28);
+        float ghostDist = length((uv - ghostPos) * vec2(ScreenSize.x / max(ScreenSize.y, 1.0), 1.0));
+        float ghost = 1.0 - smoothstep(0.0, 0.11 + fi * 0.012, ghostDist);
+        vec3 ghostColor = mix(vec3(0.2, 0.55, 1.0), vec3(1.0, 0.25, 0.08), fract(fi * 0.37));
+        color += ghostColor * ghost * (0.08 / (1.0 + fi * 0.28));
+    }
+
+    float streakY = abs(uv.y - sunUv.y);
+    float streakX = abs(uv.x - sunUv.x);
+    float anamorphic = exp(-streakY * 180.0) * (1.0 - smoothstep(0.0, 0.75, streakX));
+    color += vec3(0.55, 0.72, 1.0) * anamorphic * 0.16;
+
+    return color * onscreen * LensFlareStrength;
+}
+
 void main() {
     mat4 mv = ModelViewMat;
     mv[3].xyz = vec3(0.0);
     vec3 viewDir = normalize(vPos);
     vec3 dir = transpose(mat3(mv)) * viewDir;
+    vec3 sunDir = normalize(SunDirection);
     
     vec3 color = vec3(0.005, 0.005, 0.01);
     
@@ -156,6 +216,11 @@ void main() {
     
     float dust = smoothstep(0.3, 0.7, fbm3(dir * 3.0 - Time * 0.001));
     color *= mix(1.0, 0.7, dust * density);
+
+    color += drawZodiacalLight(dir, sunDir);
+    color += drawAuroraSky(dir, sunDir);
+    color += drawInterplanetaryScatter(dir, sunDir);
+    color += drawLensFlare(gl_FragCoord.xy / max(ScreenSize.xy, vec2(1.0)), SunScreenPos.xy, SunScreenPos.z);
 
     color = aces(color);
     

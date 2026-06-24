@@ -1,0 +1,87 @@
+{
+  "blend": {
+    "func": "add",
+    "srcrgb": "src_alpha",
+    "dstrgb": "one_minus_src_alpha"
+  },
+  "vertex": "spacemod:atmosphere",
+  "fragment": "spacemod:atmosphere",
+  "attributes": [
+    "Position",
+    "UV0"
+  ],
+  "uniforms": [
+    {
+      "name": "ProjMat",
+      "type": "matrix4x4",
+      "count": 16,
+      "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ]
+    },
+    {
+      "name": "ModelViewMat",
+      "type": "matrix4x4",
+      "count": 16,
+      "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ]
+    },
+    {
+      "name": "PlanetCenterView",
+      "type": "float",
+      "count": 3,
+      "values": [ 0.0, 0.0, 0.0 ]
+    },
+    {
+      "name": "SunViewPos",
+      "type": "float",
+      "count": 3,
+      "values": [ 0.0, 0.0, 0.0 ]
+    },
+    {
+      "name": "PlanetRadius",
+      "type": "float",
+      "count": 1,
+      "values": [ 20.0 ]
+    },
+    {
+      "name": "AtmosphereRadius",
+      "type": "float",
+      "count": 1,
+      "values": [ 21.6 ]
+    },
+    {
+      "name": "RayleighStrength",
+      "type": "float",
+      "count": 1,
+      "values": [ 18.0 ]
+    },
+    {
+      "name": "MieStrength",
+      "type": "float",
+      "count": 1,
+      "values": [ 1.2 ]
+    },
+    {
+      "name": "MieAnisotropy",
+      "type": "float",
+      "count": 1,
+      "values": [ 0.76 ]
+    },
+    {
+      "name": "AtmosphereExposure",
+      "type": "float",
+      "count": 1,
+      "values": [ 1.8 ]
+    },
+    {
+      "name": "AuroraStrength",
+      "type": "float",
+      "count": 1,
+      "values": [ 0.65 ]
+    },
+    {
+      "name": "Time",
+      "type": "float",
+      "count": 1,
+      "values": [ 0.0 ]
+    }
+  ]
+}

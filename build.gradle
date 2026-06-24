@@ -148,6 +148,12 @@ dependencies {
     api("dev.ryanhcode.sable:sable-common-${project.minecraft_version}:${project.sable_version}") {
         exclude group: "foundry.veil"
     }
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.3'
+}
+
+test {
+    useJUnitPlatform()
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.
