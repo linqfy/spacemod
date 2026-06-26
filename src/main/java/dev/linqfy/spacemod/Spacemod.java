@@ -109,9 +109,10 @@ public class Spacemod {
 
     public static final net.minecraft.resources.ResourceLocation PLANET_SHADER = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "planet");
     public static final net.minecraft.resources.ResourceLocation SKYBOX_SHADER = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "skybox");
-    public static final net.minecraft.resources.ResourceLocation ATMOSPHERE_SHADER = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "atmosphere");
     public static final net.minecraft.resources.ResourceLocation SUN_SHADER = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(MODID, "sun");
     public static final float SUN_RADIUS_BLOCKS = 200.0f;
+    public static float sunBloomStrength = 1.0f;
+    public static float sunGlobalLightingStrength = 1.0f;
 
     @EventBusSubscriber(modid = MODID, value = Dist.CLIENT)
     public static class GameClientEvents {
@@ -129,8 +130,19 @@ public class Spacemod {
                     (java.util.function.Consumer<net.neoforged.bus.api.Event>) (e) -> {
                         try {
                             Class<?> imGuiClass = Class.forName("imgui.ImGui");
+                            imGuiClass.getMethod("begin", String.class).invoke(null, "Sun Settings");
+                            float[] sunBloom = {sunBloomStrength};
+                            if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Uniform Bloom", sunBloom)) {
+                                sunBloomStrength = Math.max(0.0f, sunBloom[0]);
+                            }
+                            float[] globalLighting = {sunGlobalLightingStrength};
+                            if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Global Lighting", globalLighting)) {
+                                sunGlobalLightingStrength = Math.max(0.0f, globalLighting[0]);
+                            }
+                            imGuiClass.getMethod("end").invoke(null);
+
                             imGuiClass.getMethod("begin", String.class).invoke(null, "Planet Settings");
-                            
+
                             java.util.List<Planet> planets = PlanetManager.getPlanets();
                             for (int i = 0; i < planets.size(); i++) {
                                 Planet p = planets.get(i);
@@ -152,6 +164,11 @@ public class Spacemod {
                                         p.colorR = color[0]; p.colorG = color[1]; p.colorB = color[2];
                                     }
 
+                                    float[] atmosphereColor = {p.atmosphereColorR, p.atmosphereColorG, p.atmosphereColorB};
+                                    if ((Boolean) imGuiClass.getMethod("colorEdit3", String.class, float[].class).invoke(null, "Atmosphere Color", atmosphereColor)) {
+                                        p.atmosphereColorR = atmosphereColor[0]; p.atmosphereColorG = atmosphereColor[1]; p.atmosphereColorB = atmosphereColor[2];
+                                    }
+
                                     float[] atmosphereRadius = {p.atmosphereRadiusMultiplier};
                                     if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Atmosphere Radius", atmosphereRadius)) {
                                         p.atmosphereRadiusMultiplier = Math.max(1.001f, atmosphereRadius[0]);
@@ -160,6 +177,18 @@ public class Spacemod {
                                     float[] rayleigh = {p.rayleighStrength};
                                     if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Rayleigh Strength", rayleigh)) {
                                         p.rayleighStrength = Math.max(0.0f, rayleigh[0]);
+                                    }
+
+                                    float[] gasDensity = {p.gasDensity};
+                                    if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Gas Density", gasDensity)) {
+                                        p.gasDensity = Math.max(0.0f, gasDensity[0]);
+                                    }
+
+                                    float[] wavelengths = {p.rayleighWavelengthR, p.rayleighWavelengthG, p.rayleighWavelengthB};
+                                    if ((Boolean) imGuiClass.getMethod("dragFloat3", String.class, float[].class).invoke(null, "Rayleigh Wavelengths", wavelengths)) {
+                                        p.rayleighWavelengthR = Math.max(380.0f, Math.min(780.0f, wavelengths[0]));
+                                        p.rayleighWavelengthG = Math.max(380.0f, Math.min(780.0f, wavelengths[1]));
+                                        p.rayleighWavelengthB = Math.max(380.0f, Math.min(780.0f, wavelengths[2]));
                                     }
 
                                     float[] mie = {p.mieStrength};
@@ -177,14 +206,24 @@ public class Spacemod {
                                         p.atmosphereExposure = Math.max(0.0f, atmosphereExposure[0]);
                                     }
 
+                                    float[] notLookingBloom = {p.notLookingBloomIntensity};
+                                    if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Not-Looking Bloom", notLookingBloom)) {
+                                        p.notLookingBloomIntensity = Math.max(0.0f, notLookingBloom[0]);
+                                    }
+
+                                    float[] lookingEdgeBloom = {p.lookingEdgeBloomIntensity};
+                                    if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Looking Edge Bloom", lookingEdgeBloom)) {
+                                        p.lookingEdgeBloomIntensity = Math.max(0.0f, lookingEdgeBloom[0]);
+                                    }
+
+                                    float[] bloomMorphRadius = {p.bloomMorphRadius};
+                                    if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Bloom Morph Radius", bloomMorphRadius)) {
+                                        p.bloomMorphRadius = Math.max(0.01f, bloomMorphRadius[0]);
+                                    }
+
                                     float[] aurora = {p.auroraStrength};
                                     if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Aurora Strength", aurora)) {
                                         p.auroraStrength = Math.max(0.0f, aurora[0]);
-                                    }
-
-                                    float[] lensFlare = {p.lensFlareStrength};
-                                    if ((Boolean) imGuiClass.getMethod("dragFloat", String.class, float[].class).invoke(null, "Lens Flare", lensFlare)) {
-                                        p.lensFlareStrength = Math.max(0.0f, lensFlare[0]);
                                     }
                                     
                                     if ((Boolean) imGuiClass.getMethod("button", String.class).invoke(null, "Remove Planet")) {
@@ -232,6 +271,9 @@ public class Spacemod {
                 org.joml.Quaternionf camRot = new org.joml.Quaternionf(cam.rotation());
                 camRot.conjugate();
                 org.joml.Matrix4f viewMat = new org.joml.Matrix4f().rotation(camRot);
+                org.joml.Vector3f cameraForwardDirection = new org.joml.Vector3f(0.0f, 0.0f, -1.0f);
+                new org.joml.Quaternionf(cam.rotation()).transform(cameraForwardDirection);
+                cameraForwardDirection.normalize();
                 org.joml.Vector4f sunView = new org.joml.Vector4f((float) -cam.getPosition().x, (float) -cam.getPosition().y, (float) -cam.getPosition().z, 1.0f);
                 viewMat.transform(sunView);
 
@@ -253,11 +295,40 @@ public class Spacemod {
                 } else {
                     sunWorldDirection.normalize();
                 }
-                float lensFlareStrength = 0.0f;
-                for (Planet planet : PlanetManager.getPlanets()) {
-                    lensFlareStrength = Math.max(lensFlareStrength, planet.lensFlareStrength);
+                java.util.List<Planet> planets = PlanetManager.getPlanets();
+                org.joml.Vector3f planetAtmosphereDirection = new org.joml.Vector3f(0.0f, 1.0f, 0.0f);
+                float planetAtmosphereR = 0.45f;
+                float planetAtmosphereG = 0.63f;
+                float planetAtmosphereB = 1.0f;
+                float planetSurfaceAngularRadius = 0.0f;
+                float planetAtmosphereAngularRadius = 0.0f;
+                float planetAtmosphereIntensity = 0.0f;
+                float planetAtmosphereNotLookingIntensity = 0.0f;
+                float planetAtmosphereLookingEdgeIntensity = 0.0f;
+                float planetAtmosphereMorphRadius = 0.18f;
+                float nearestPlanetDistance = Float.MAX_VALUE;
+                for (Planet planet : planets) {
+                    float px = planet.x - (float) cam.getPosition().x;
+                    float py = planet.y - (float) cam.getPosition().y;
+                    float pz = planet.z - (float) cam.getPosition().z;
+                    float planetDistance = (float) Math.sqrt(px * px + py * py + pz * pz);
+                    if (planetDistance > 0.001f && planetDistance < nearestPlanetDistance) {
+                        nearestPlanetDistance = planetDistance;
+                        planetAtmosphereDirection.set(px / planetDistance, py / planetDistance, pz / planetDistance);
+                        planetAtmosphereR = planet.atmosphereColorR;
+                        planetAtmosphereG = planet.atmosphereColorG;
+                        planetAtmosphereB = planet.atmosphereColorB;
+                        float surfaceAngularInput = Math.max(0.0f, Math.min(0.95f, planet.radius / planetDistance));
+                        planetSurfaceAngularRadius = (float) Math.asin(surfaceAngularInput);
+                        float atmosphereRadius = planet.radius * Math.max(1.001f, planet.atmosphereRadiusMultiplier);
+                        float angularInput = Math.max(0.0f, Math.min(0.95f, atmosphereRadius / planetDistance));
+                        planetAtmosphereAngularRadius = (float) Math.asin(angularInput);
+                        planetAtmosphereIntensity = Math.min(2.5f, planet.atmosphereExposure * planet.gasDensity * (0.45f + planet.rayleighStrength * 0.035f));
+                        planetAtmosphereNotLookingIntensity = planet.notLookingBloomIntensity;
+                        planetAtmosphereLookingEdgeIntensity = planet.lookingEdgeBloomIntensity;
+                        planetAtmosphereMorphRadius = planet.bloomMorphRadius;
+                    }
                 }
-
                 com.mojang.blaze3d.systems.RenderSystem.enableDepthTest();
                 com.mojang.blaze3d.systems.RenderSystem.depthMask(true);
                 com.mojang.blaze3d.systems.RenderSystem.disableCull();
@@ -284,12 +355,32 @@ public class Spacemod {
                         if (skyTimeUniform != null) skyTimeUniform.setFloat((System.currentTimeMillis() % 100000L) / 1000.0f);
                         foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skySunScreenUniform = skyboxShader.getUniform("SunScreenPos");
                         if (skySunScreenUniform != null) skySunScreenUniform.setVector(sunScreenX, sunScreenY, sunVisible);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyCameraForwardUniform = skyboxShader.getUniform("CameraForwardDirection");
+                        if (skyCameraForwardUniform != null) skyCameraForwardUniform.setVector(cameraForwardDirection.x, cameraForwardDirection.y, cameraForwardDirection.z);
                         foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyScreenUniform = skyboxShader.getUniform("ScreenSize");
                         if (skyScreenUniform != null) skyScreenUniform.setVector((float) mc.getWindow().getWidth(), (float) mc.getWindow().getHeight(), 1.0f);
                         foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skySunDirUniform = skyboxShader.getUniform("SunDirection");
                         if (skySunDirUniform != null) skySunDirUniform.setVector(sunWorldDirection.x, sunWorldDirection.y, sunWorldDirection.z);
                         foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyLensFlareUniform = skyboxShader.getUniform("LensFlareStrength");
-                        if (skyLensFlareUniform != null) skyLensFlareUniform.setFloat(lensFlareStrength);
+                        if (skyLensFlareUniform != null) skyLensFlareUniform.setFloat(sunBloomStrength);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyGlobalLightUniform = skyboxShader.getUniform("GlobalLightStrength");
+                        if (skyGlobalLightUniform != null) skyGlobalLightUniform.setFloat(sunGlobalLightingStrength);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyPlanetDirUniform = skyboxShader.getUniform("PlanetAtmosphereDirection");
+                        if (skyPlanetDirUniform != null) skyPlanetDirUniform.setVector(planetAtmosphereDirection.x, planetAtmosphereDirection.y, planetAtmosphereDirection.z);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyPlanetColorUniform = skyboxShader.getUniform("PlanetAtmosphereColor");
+                        if (skyPlanetColorUniform != null) skyPlanetColorUniform.setVector(planetAtmosphereR, planetAtmosphereG, planetAtmosphereB);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyPlanetSurfaceRadiusUniform = skyboxShader.getUniform("PlanetSurfaceAngularRadius");
+                        if (skyPlanetSurfaceRadiusUniform != null) skyPlanetSurfaceRadiusUniform.setFloat(planetSurfaceAngularRadius);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyPlanetRadiusUniform = skyboxShader.getUniform("PlanetAtmosphereAngularRadius");
+                        if (skyPlanetRadiusUniform != null) skyPlanetRadiusUniform.setFloat(planetAtmosphereAngularRadius);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyPlanetIntensityUniform = skyboxShader.getUniform("PlanetAtmosphereIntensity");
+                        if (skyPlanetIntensityUniform != null) skyPlanetIntensityUniform.setFloat(planetAtmosphereIntensity);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyPlanetNotLookingUniform = skyboxShader.getUniform("PlanetAtmosphereNotLookingIntensity");
+                        if (skyPlanetNotLookingUniform != null) skyPlanetNotLookingUniform.setFloat(planetAtmosphereNotLookingIntensity);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyPlanetLookingEdgeUniform = skyboxShader.getUniform("PlanetAtmosphereLookingEdgeIntensity");
+                        if (skyPlanetLookingEdgeUniform != null) skyPlanetLookingEdgeUniform.setFloat(planetAtmosphereLookingEdgeIntensity);
+                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess skyPlanetMorphRadiusUniform = skyboxShader.getUniform("PlanetAtmosphereMorphRadius");
+                        if (skyPlanetMorphRadiusUniform != null) skyPlanetMorphRadiusUniform.setFloat(planetAtmosphereMorphRadius);
 
                         com.mojang.blaze3d.systems.RenderSystem.disableDepthTest();
                         com.mojang.blaze3d.systems.RenderSystem.depthMask(false);
@@ -340,7 +431,6 @@ public class Spacemod {
                     }
                 }
 
-                java.util.List<Planet> planets = PlanetManager.getPlanets();
                 for (Planet p : planets) {
                     ms.pushPose();
                     
@@ -351,8 +441,6 @@ public class Spacemod {
                     float dy = p.y - (float) cam.getPosition().y;
                     float dz = p.z - (float) cam.getPosition().z;
                     mv.translate(dx, dy, dz);
-                    org.joml.Vector3f planetCenterView = new org.joml.Vector3f();
-                    mv.transformPosition(0.0f, 0.0f, 0.0f, planetCenterView);
                     mv.scale(p.radius, p.radius, p.radius);
 
                     shader.bind();
@@ -365,6 +453,8 @@ public class Spacemod {
 
                     foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess sunPosUniform = shader.getUniform("SunViewPos");
                     if (sunPosUniform != null) sunPosUniform.setVector(sunView.x, sunView.y, sunView.z);
+                    foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess planetSunLightUniform = shader.getUniform("SunLightStrength");
+                    if (planetSunLightUniform != null) planetSunLightUniform.setFloat(sunGlobalLightingStrength);
 
                     float distance = (float) Math.sqrt(dx*dx + dy*dy + dz*dz);
                     foundry.veil.api.client.render.vertex.VertexArray vertexArray = PlanetManager.getLODForDistance(distance, p.radius);
@@ -372,49 +462,6 @@ public class Spacemod {
                     vertexArray.bind();
                     vertexArray.draw();
                     foundry.veil.api.client.render.vertex.VertexArray.unbind();
-
-                    foundry.veil.api.client.render.shader.program.ShaderProgram atmosphereShader = foundry.veil.api.client.render.VeilRenderSystem.setShader(Spacemod.ATMOSPHERE_SHADER);
-                    if (atmosphereShader != null) {
-                        atmosphereShader.bind();
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess atmosphereProjUniform = atmosphereShader.getUniform("ProjMat");
-                        if (atmosphereProjUniform != null) atmosphereProjUniform.setMatrix(event.getProjectionMatrix());
-
-                        org.joml.Matrix4f atmosphereMv = new org.joml.Matrix4f();
-                        atmosphereMv.rotation(camRot);
-                        atmosphereMv.translate(dx, dy, dz);
-                        float atmosphereRadius = p.radius * Math.max(1.001f, p.atmosphereRadiusMultiplier);
-                        atmosphereMv.scale(atmosphereRadius, atmosphereRadius, atmosphereRadius);
-
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess atmosphereMvUniform = atmosphereShader.getUniform("ModelViewMat");
-                        if (atmosphereMvUniform != null) atmosphereMvUniform.setMatrix(atmosphereMv);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess centerUniform = atmosphereShader.getUniform("PlanetCenterView");
-                        if (centerUniform != null) centerUniform.setVector(planetCenterView.x, planetCenterView.y, planetCenterView.z);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess planetRadiusUniform = atmosphereShader.getUniform("PlanetRadius");
-                        if (planetRadiusUniform != null) planetRadiusUniform.setFloat(p.radius);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess atmosphereRadiusUniform = atmosphereShader.getUniform("AtmosphereRadius");
-                        if (atmosphereRadiusUniform != null) atmosphereRadiusUniform.setFloat(atmosphereRadius);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess atmosphereSunUniform = atmosphereShader.getUniform("SunViewPos");
-                        if (atmosphereSunUniform != null) atmosphereSunUniform.setVector(sunView.x, sunView.y, sunView.z);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess rayleighUniform = atmosphereShader.getUniform("RayleighStrength");
-                        if (rayleighUniform != null) rayleighUniform.setFloat(p.rayleighStrength);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess mieUniform = atmosphereShader.getUniform("MieStrength");
-                        if (mieUniform != null) mieUniform.setFloat(p.mieStrength);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess anisotropyUniform = atmosphereShader.getUniform("MieAnisotropy");
-                        if (anisotropyUniform != null) anisotropyUniform.setFloat(p.mieAnisotropy);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess exposureUniform = atmosphereShader.getUniform("AtmosphereExposure");
-                        if (exposureUniform != null) exposureUniform.setFloat(p.atmosphereExposure);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess auroraUniform = atmosphereShader.getUniform("AuroraStrength");
-                        if (auroraUniform != null) auroraUniform.setFloat(p.auroraStrength);
-                        foundry.veil.api.client.render.shader.uniform.ShaderUniformAccess atmosphereTimeUniform = atmosphereShader.getUniform("Time");
-                        if (atmosphereTimeUniform != null) atmosphereTimeUniform.setFloat((System.currentTimeMillis() % 100000L) / 1000.0f);
-
-                        com.mojang.blaze3d.systems.RenderSystem.depthMask(false);
-                        foundry.veil.api.client.render.vertex.VertexArray atmosphereVertexArray = PlanetManager.getLODForDistance(distance, atmosphereRadius);
-                        atmosphereVertexArray.bind();
-                        atmosphereVertexArray.draw();
-                        foundry.veil.api.client.render.vertex.VertexArray.unbind();
-                        com.mojang.blaze3d.systems.RenderSystem.depthMask(true);
-                    }
 
                     ms.popPose();
                 }

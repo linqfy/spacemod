@@ -36,6 +36,18 @@
       "values": [ 0.0, 0.0, 0.0 ]
     },
     {
+      "name": "AtmosphereColor",
+      "type": "float",
+      "count": 3,
+      "values": [ 0.45, 0.63, 1.0 ]
+    },
+    {
+      "name": "RayleighWavelengths",
+      "type": "float",
+      "count": 3,
+      "values": [ 680.0, 550.0, 440.0 ]
+    },
+    {
       "name": "PlanetRadius",
       "type": "float",
       "count": 1,
@@ -45,37 +57,43 @@
       "name": "AtmosphereRadius",
       "type": "float",
       "count": 1,
-      "values": [ 21.6 ]
+      "values": [ 20.5 ]
     },
     {
       "name": "RayleighStrength",
       "type": "float",
       "count": 1,
-      "values": [ 18.0 ]
+      "values": [ 7.5 ]
+    },
+    {
+      "name": "GasDensity",
+      "type": "float",
+      "count": 1,
+      "values": [ 1.0 ]
     },
     {
       "name": "MieStrength",
       "type": "float",
       "count": 1,
-      "values": [ 1.2 ]
+      "values": [ 0.28 ]
     },
     {
       "name": "MieAnisotropy",
       "type": "float",
       "count": 1,
-      "values": [ 0.76 ]
+      "values": [ 0.82 ]
     },
     {
       "name": "AtmosphereExposure",
       "type": "float",
       "count": 1,
-      "values": [ 1.8 ]
+      "values": [ 1.25 ]
     },
     {
       "name": "AuroraStrength",
       "type": "float",
       "count": 1,
-      "values": [ 0.65 ]
+      "values": [ 0.0 ]
     },
     {
       "name": "Time",

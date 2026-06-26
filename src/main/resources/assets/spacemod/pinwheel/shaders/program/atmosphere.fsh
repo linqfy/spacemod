@@ -5,9 +5,12 @@ in vec3 viewPos;
 
 uniform vec3 PlanetCenterView;
 uniform vec3 SunViewPos;
+uniform vec3 AtmosphereColor;
+uniform vec3 RayleighWavelengths;
 uniform float PlanetRadius;
 uniform float AtmosphereRadius;
 uniform float RayleighStrength;
+uniform float GasDensity;
 uniform float MieStrength;
 uniform float MieAnisotropy;
 uniform float AtmosphereExposure;
@@ -57,9 +60,15 @@ vec2 densitiesAt(vec3 p) {
     float altitude = max(length(p - PlanetCenterView) - PlanetRadius, 0.0);
     float normalizedAltitude = altitude / atmosphereThickness;
 
-    float rayleighDensity = exp(-normalizedAltitude / 0.34);
-    float mieDensity = exp(-normalizedAltitude / 0.12);
+    float rayleighDensity = exp(-normalizedAltitude / 0.28);
+    float mieDensity = exp(-normalizedAltitude / 0.095);
     return vec2(rayleighDensity, mieDensity);
+}
+
+vec3 rayleighFromWavelengths(vec3 wavelengthsNm) {
+    vec3 wavelengths = clamp(wavelengthsNm, vec3(380.0), vec3(780.0));
+    vec3 earthReference = vec3(680.0, 550.0, 440.0);
+    return pow(earthReference / wavelengths, vec3(4.0));
 }
 
 float planetShadow(vec3 p, vec3 sunDir) {
@@ -121,8 +130,8 @@ void main() {
     }
 
     vec3 sunDir = normalize(SunViewPos - PlanetCenterView);
-    vec3 betaRayleigh = vec3(5.802, 13.558, 33.100) * 0.00055 * RayleighStrength;
-    vec3 betaMie = vec3(0.034) * MieStrength;
+    vec3 betaRayleigh = vec3(5.802, 13.558, 33.100) * rayleighFromWavelengths(RayleighWavelengths) * 0.00055 * RayleighStrength * GasDensity;
+    vec3 betaMie = vec3(0.012) * MieStrength * GasDensity;
 
     float mu = dot(rayDir, sunDir);
     float rayleighPhase = (3.0 / (16.0 * PI)) * (1.0 + mu * mu);
@@ -130,6 +139,9 @@ void main() {
     float miePhase = (3.0 / (8.0 * PI)) * ((1.0 - g * g) * (1.0 + mu * mu)) / ((2.0 + g * g) * pow(max(1.0 + g * g - 2.0 * g * mu, 0.001), 1.5));
 
     float stepSize = (atmosphereExit - atmosphereEnter) / float(VIEW_STEPS);
+    float normalizedPathLength = (atmosphereExit - atmosphereEnter) / max(AtmosphereRadius, 0.001);
+    float horizonBoost = smoothstep(0.035, 0.28, normalizedPathLength);
+    float cameraBoost = horizonBoost;
     vec2 viewDepth = vec2(0.0);
     vec3 scattered = vec3(0.0);
     float alphaDepth = 0.0;
@@ -138,21 +150,21 @@ void main() {
         float t = atmosphereEnter + (float(i) + 0.5) * stepSize;
         vec3 samplePos = rayOrigin + rayDir * t;
         vec2 density = densitiesAt(samplePos);
-        float segment = stepSize / AtmosphereRadius;
+        float segment = (stepSize / AtmosphereRadius) * mix(0.72, 1.55, cameraBoost);
         viewDepth += density * segment;
 
         float sunlight = planetShadow(samplePos, sunDir);
         vec2 lightDepth = opticalDepthToSun(samplePos, sunDir);
         vec3 extinction = exp(-(betaRayleigh * (viewDepth.x + lightDepth.x) + betaMie * (viewDepth.y + lightDepth.y)));
 
-        vec3 rayleigh = betaRayleigh * density.x * rayleighPhase;
-        vec3 mie = betaMie * density.y * miePhase;
+        vec3 rayleigh = betaRayleigh * density.x * rayleighPhase * AtmosphereColor;
+        vec3 mie = betaMie * density.y * miePhase * mix(vec3(1.0), AtmosphereColor, 0.35);
         scattered += (rayleigh + mie) * extinction * sunlight * segment;
         scattered += auroraColor(samplePos, sunDir) * density.x * segment * 0.08;
-        alphaDepth += (density.x * 0.08 + density.y * 0.12) * segment;
+        alphaDepth += (density.x * 0.045 + density.y * 0.08) * segment;
     }
 
     vec3 color = vec3(1.0) - exp(-scattered * AtmosphereExposure);
-    float alpha = clamp(alphaDepth * AtmosphereExposure * 2.6 + max(max(color.r, color.g), color.b) * 0.8, 0.0, 0.82);
+    float alpha = clamp(alphaDepth * AtmosphereExposure * 1.75 + max(max(color.r, color.g), color.b) * 0.58, 0.0, 0.68);
     fragColor = vec4(color, alpha);
 }

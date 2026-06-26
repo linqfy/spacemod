@@ -8,7 +8,17 @@ uniform mat4 ModelViewMat;
 uniform vec3 ScreenSize;
 uniform vec3 SunDirection;
 uniform vec3 SunScreenPos;
+uniform vec3 CameraForwardDirection;
 uniform float LensFlareStrength;
+uniform float GlobalLightStrength;
+uniform vec3 PlanetAtmosphereDirection;
+uniform vec3 PlanetAtmosphereColor;
+uniform float PlanetSurfaceAngularRadius;
+uniform float PlanetAtmosphereAngularRadius;
+uniform float PlanetAtmosphereIntensity;
+uniform float PlanetAtmosphereNotLookingIntensity;
+uniform float PlanetAtmosphereLookingEdgeIntensity;
+uniform float PlanetAtmosphereMorphRadius;
 
 float hash(vec3 p) {
     p = fract(p * vec3(0.1031, 0.1030, 0.0973));
@@ -157,7 +167,8 @@ vec3 drawAuroraSky(vec3 dir, vec3 sunDir) {
 }
 
 vec3 drawLensFlare(vec2 uv, vec2 sunUv, float visible, vec3 dir, vec3 sunDir) {
-    float onscreen = step(-0.25, sunUv.x) * step(sunUv.x, 1.25) * step(-0.25, sunUv.y) * step(sunUv.y, 1.25) * step(0.0, visible);
+    float visibilityGate = step(0.5, visible);
+    float onscreen = step(-0.25, sunUv.x) * step(sunUv.x, 1.25) * step(-0.25, sunUv.y) * step(sunUv.y, 1.25);
     vec2 center = vec2(0.5);
     vec2 axis = center - sunUv;
     vec3 lensColor = vec3(0.0);
@@ -208,9 +219,69 @@ vec3 drawLensFlare(vec2 uv, vec2 sunUv, float visible, vec3 dir, vec3 sunDir) {
     
     vec3 anamorphicColor = vec3(anamorphicR, anamorphicG, anamorphicB) * vec3(0.6, 0.75, 1.0);
     lensColor += anamorphicColor * (0.25 + 0.05 * sin(Time * 2.5));
+    lensColor *= onscreen;
 
-    // Add ambient color regardless of screen position, only multiply lens artifacts by onscreen
-    return (ambientColor + lensColor * onscreen) * LensFlareStrength;
+    return (ambientColor + lensColor) * LensFlareStrength * visibilityGate;
+}
+
+vec3 drawPlanetAtmosphereBloom(vec3 dir, vec3 sunDir) {
+    if (PlanetAtmosphereAngularRadius <= 0.0001 || PlanetAtmosphereIntensity <= 0.0) {
+        return vec3(0.0);
+    }
+
+    vec3 planetDir = normalize(PlanetAtmosphereDirection);
+    vec3 cameraForward = normalize(CameraForwardDirection);
+    float planetDot = dot(dir, planetDir);
+    float angleDist = acos(clamp(planetDot, -1.0, 1.0));
+    float surfaceRadius = max(PlanetSurfaceAngularRadius, 0.0001);
+    float atmosphereRadius = max(PlanetAtmosphereAngularRadius, surfaceRadius + 0.0001);
+    float shellThickness = max(atmosphereRadius - surfaceRadius, surfaceRadius * 0.015);
+    float morphRadius = max(PlanetAtmosphereMorphRadius, 0.01);
+    vec3 rawCameraTangent = cameraForward - planetDir * dot(cameraForward, planetDir);
+    float tangentLength = length(rawCameraTangent);
+    float edgeTargetStrength = smoothstep(surfaceRadius * 0.18, surfaceRadius * 0.95, tangentLength);
+    vec3 fallbackAxis = abs(planetDir.y) < 0.95 ? vec3(0.0, 1.0, 0.0) : vec3(1.0, 0.0, 0.0);
+    vec3 cameraTangent = tangentLength > 0.0001 ? normalize(rawCameraTangent) : normalize(cross(planetDir, fallbackAxis));
+    vec3 rawSampleTangent = dir - planetDir * planetDot;
+    vec3 sampleTangent = length(rawSampleTangent) > 0.0001 ? normalize(rawSampleTangent) : cameraTangent;
+    float shellImpact = clamp((angleDist - surfaceRadius) / shellThickness, -1.0, 3.0);
+    float lookedEdge = clamp(dot(sampleTangent, cameraTangent) * 0.5 + 0.5, 0.0, 1.0);
+    float edgeExtension = (PlanetAtmosphereLookingEdgeIntensity * lookedEdge - PlanetAtmosphereNotLookingIntensity * (1.0 - lookedEdge) * 0.35) * edgeTargetStrength;
+    float extensionAmount = shellThickness * morphRadius * 0.8;
+    float deformedSurfaceRadius = max(surfaceRadius + edgeExtension * extensionAmount, surfaceRadius * 0.82);
+    float deformedAtmosphereRadius = max(atmosphereRadius + edgeExtension * extensionAmount, deformedSurfaceRadius + shellThickness);
+    float deformedShellImpact = (angleDist - deformedSurfaceRadius) / shellThickness;
+    float shapedShellImpact = clamp(deformedShellImpact, -1.0, 4.25);
+    float baseShellImpact = clamp((angleDist - surfaceRadius) / shellThickness, -1.0, 4.25);
+    float diskPosition = clamp(angleDist / surfaceRadius, 0.0, 1.15);
+    float normalBlend = smoothstep(0.08, 1.0, diskPosition);
+    vec3 atmosphereNormal = normalize(mix(-planetDir, sampleTangent, normalBlend));
+    float horizonWidth = max(shellThickness * (0.75 + morphRadius * 1.15), 0.0015);
+    float outerWidth = max(shellThickness * (2.4 + morphRadius * 4.5), 0.003);
+    float broadWidth = max(shellThickness * (5.0 + morphRadius * 10.0), 0.006);
+    float horizonOpticalDepth = exp(-abs(angleDist - surfaceRadius) / horizonWidth);
+    float edgeOpticalDepth = horizonOpticalDepth + exp(-abs(angleDist - deformedSurfaceRadius) / horizonWidth) * edgeTargetStrength * lookedEdge;
+    float outsideHalo = exp(-max(angleDist - atmosphereRadius, 0.0) / outerWidth);
+    float edgeOutsideHalo = exp(-max(angleDist - deformedAtmosphereRadius, 0.0) / outerWidth) * edgeTargetStrength * lookedEdge;
+    float broadBloom = exp(-max(angleDist - surfaceRadius, 0.0) / broadWidth) * smoothstep(-0.35, 1.2, baseShellImpact);
+    float innerOcclusion = smoothstep(surfaceRadius * 0.94, surfaceRadius + shellThickness * 0.55, angleDist);
+    float shellMask = smoothstep(-0.85, 0.05, baseShellImpact) * (1.0 - smoothstep(3.2 + morphRadius * 1.5, 4.25, baseShellImpact));
+    float edgeMask = smoothstep(-0.85, 0.05, shapedShellImpact) * (1.0 - smoothstep(3.2 + morphRadius * 1.5, 4.25, shapedShellImpact));
+    float cameraFacingEdge = mix(0.5, smoothstep(0.15, 0.95, lookedEdge), edgeTargetStrength);
+    float sunlitRim = smoothstep(-0.05, 0.35, dot(atmosphereNormal, sunDir));
+    float terminatorGlow = exp(-abs(dot(atmosphereNormal, sunDir)) / 0.18) * 0.35;
+    float daylightVisibility = mix(0.015, 1.0, max(sunlitRim, terminatorGlow));
+    float mu = dot(dir, sunDir);
+    float rayleighPhase = 0.75 * (1.0 + mu * mu);
+    float mieG = 0.76;
+    float mieDenom = max(1.0 + mieG * mieG - 2.0 * mieG * mu, 0.05);
+    float miePhase = (1.0 - mieG * mieG) / pow(mieDenom, 1.5) * 0.08;
+    float bloomModeIntensity = mix(PlanetAtmosphereNotLookingIntensity, PlanetAtmosphereLookingEdgeIntensity, cameraFacingEdge);
+
+    vec3 rayleigh = PlanetAtmosphereColor * (horizonOpticalDepth * 1.05 * shellMask + edgeOpticalDepth * 0.42 * edgeMask + broadBloom * 0.42 + outsideHalo * 0.18 + edgeOutsideHalo * 0.08) * innerOcclusion * rayleighPhase;
+    vec3 mie = mix(vec3(1.0, 0.86, 0.65), PlanetAtmosphereColor, 0.25) * miePhase * (outsideHalo * 0.58 + edgeOutsideHalo * 0.18 + broadBloom * 0.32) * innerOcclusion;
+    vec3 visibleBloom = rayleigh + mie;
+    return visibleBloom * PlanetAtmosphereIntensity * bloomModeIntensity * daylightVisibility * GlobalLightStrength;
 }
 
 void main() {
@@ -248,9 +319,10 @@ void main() {
     float dust = smoothstep(0.3, 0.7, fbm3(dir * 3.0 - Time * 0.001));
     color *= mix(1.0, 0.7, dust * density);
 
-    color += drawZodiacalLight(dir, sunDir);
+    color += drawZodiacalLight(dir, sunDir) * GlobalLightStrength;
     color += drawAuroraSky(dir, sunDir);
-    color += drawInterplanetaryScatter(dir, sunDir);
+    color += drawInterplanetaryScatter(dir, sunDir) * GlobalLightStrength;
+    color += drawPlanetAtmosphereBloom(dir, sunDir);
     color += drawLensFlare(gl_FragCoord.xy / max(ScreenSize.xy, vec2(1.0)), SunScreenPos.xy, SunScreenPos.z, dir, sunDir);
 
     color = aces(color);

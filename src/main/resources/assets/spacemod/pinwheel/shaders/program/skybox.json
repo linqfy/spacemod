@@ -49,10 +49,70 @@
       "values": [ 0.5, 0.5, 0.0 ]
     },
     {
+      "name": "CameraForwardDirection",
+      "type": "float",
+      "count": 3,
+      "values": [ 0.0, 0.0, 1.0 ]
+    },
+    {
       "name": "LensFlareStrength",
       "type": "float",
       "count": 1,
       "values": [ 1.0 ]
+    },
+    {
+      "name": "GlobalLightStrength",
+      "type": "float",
+      "count": 1,
+      "values": [ 1.0 ]
+    },
+    {
+      "name": "PlanetAtmosphereDirection",
+      "type": "float",
+      "count": 3,
+      "values": [ 0.0, 1.0, 0.0 ]
+    },
+    {
+      "name": "PlanetAtmosphereColor",
+      "type": "float",
+      "count": 3,
+      "values": [ 0.45, 0.63, 1.0 ]
+    },
+    {
+      "name": "PlanetSurfaceAngularRadius",
+      "type": "float",
+      "count": 1,
+      "values": [ 0.0 ]
+    },
+    {
+      "name": "PlanetAtmosphereAngularRadius",
+      "type": "float",
+      "count": 1,
+      "values": [ 0.0 ]
+    },
+    {
+      "name": "PlanetAtmosphereIntensity",
+      "type": "float",
+      "count": 1,
+      "values": [ 0.0 ]
+    },
+    {
+      "name": "PlanetAtmosphereNotLookingIntensity",
+      "type": "float",
+      "count": 1,
+      "values": [ 0.55 ]
+    },
+    {
+      "name": "PlanetAtmosphereLookingEdgeIntensity",
+      "type": "float",
+      "count": 1,
+      "values": [ 2.4 ]
+    },
+    {
+      "name": "PlanetAtmosphereMorphRadius",
+      "type": "float",
+      "count": 1,
+      "values": [ 0.18 ]
     }
   ]
 }
